@@ -35,7 +35,7 @@ type Departure struct {
 
 func GetData(station string, limit int) (departures []Departure, err error) {
 	departures = make([]Departure, limit)
-	stationId := "" //TODO fetch StationID by name
+	stationId := station //TODO fetch StationID by name
 	url := fmt.Sprintf("https://www.mvg.de/api/fib/v2/departure?globalId=%s", stationId)
 
 	client := http.Client{
@@ -44,12 +44,14 @@ func GetData(station string, limit int) (departures []Departure, err error) {
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
+		log.Fatal("Couldn't create request")
 		log.Fatal(err)
 		return
 	}
 
 	res, err := client.Do(req)
 	if err != nil {
+		log.Fatal("Couldn't do request")
 		log.Fatal(err)
 		return
 	}
@@ -60,12 +62,14 @@ func GetData(station string, limit int) (departures []Departure, err error) {
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
+		log.Fatal("Couldn't read body")
 		log.Fatal(err)
 	}
 
 	allDepartures := make([]Departure, 30)
 	jsonErr := json.Unmarshal(body, &allDepartures)
 	if jsonErr != nil {
+		log.Fatal("Couldn't unmarshal body")
 		log.Fatal(jsonErr)
 	}
 
