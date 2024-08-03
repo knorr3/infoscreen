@@ -33,9 +33,8 @@ type Departure struct {
 	// StopPointGlobalId     string   `json:"stopPointGlobalId"`
 }
 
-func GetData(station string, limit int) (departures []Departure, err error) {
+func GetData(stationId string, limit int) (departures []Departure, err error) {
 	departures = make([]Departure, limit)
-	stationId := station //TODO fetch StationID by name
 	url := fmt.Sprintf("https://www.mvg.de/api/fib/v2/departure?globalId=%s", stationId)
 
 	client := http.Client{
