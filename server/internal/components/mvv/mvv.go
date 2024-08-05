@@ -33,8 +33,6 @@ type Departure struct {
 }
 
 func GetData(limit int) (departures []Departure, err error) {
-	departures = make([]Departure, limit)
-
 	stationId, err := util.GetEnv("MVV_STATION", "")
 	if err != nil {
 		return
@@ -58,14 +56,19 @@ func GetData(limit int) (departures []Departure, err error) {
 	})
 
 	// Filter how many items should be returned
+	limit = min(limit, len(allDepartures))
 	for i := range limit {
-		departures[i] = allDepartures[i]
+		departures = append(departures, allDepartures[i])
 	}
 
 	// Calculate timestamp from unixtime
 	for i, departure := range departures {
 		departures[i].PlannedDepartureTimeS = time.Unix(departure.PlannedDepartureTime/1000, 0).Format("15:04")
 		departures[i].RealtimeDepartureTimeS = time.Unix(departure.RealtimeDepartureTime/1000, 0).Format("15:04")
+	}
+
+	if len(departures) == 0 {
+		err = fmt.Errorf("no departures found")
 	}
 
 	return
