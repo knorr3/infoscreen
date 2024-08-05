@@ -3,11 +3,10 @@ package mvv
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"net/http"
 	"sort"
 	"time"
+
+	util "github.com/knorr3/infoscreen/server/internal/util"
 )
 
 type Departure struct {
@@ -33,43 +32,24 @@ type Departure struct {
 	// StopPointGlobalId     string   `json:"stopPointGlobalId"`
 }
 
-func GetData(stationId string, limit int) (departures []Departure, err error) {
+func GetData(limit int) (departures []Departure, err error) {
 	departures = make([]Departure, limit)
+
+	stationId, err := util.GetEnv("MVV_STATION", "")
+	if err != nil {
+		return
+	}
 	url := fmt.Sprintf("https://www.mvg.de/api/fib/v2/departure?globalId=%s", stationId)
 
-	client := http.Client{
-		Timeout: time.Second * 2, // Timeout after 2 seconds
-	}
-
-	req, err := http.NewRequest(http.MethodGet, url, nil)
+	body, err := util.MakeAPIRequest(url, "")
 	if err != nil {
-		log.Fatal("Couldn't create request")
-		log.Fatal(err)
 		return
-	}
-
-	res, err := client.Do(req)
-	if err != nil {
-		log.Fatal("Couldn't do request")
-		log.Fatal(err)
-		return
-	}
-
-	if res.Body != nil {
-		defer res.Body.Close()
-	}
-
-	body, err := io.ReadAll(res.Body)
-	if err != nil {
-		log.Fatal("Couldn't read body")
-		log.Fatal(err)
 	}
 
 	allDepartures := make([]Departure, 30)
 	jsonErr := json.Unmarshal(body, &allDepartures)
 	if jsonErr != nil {
-		log.Fatal("Couldn't unmarshal body")
-		log.Fatal(jsonErr)
+		return
 	}
 
 	// Sort the trainInfos slice by PlannedDepartureTime
