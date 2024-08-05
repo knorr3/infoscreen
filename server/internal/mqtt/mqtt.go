@@ -7,8 +7,9 @@ import (
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
-	mvv "github.com/knorr3/infoscreen/server/internal/components/mvv"
-	util "github.com/knorr3/infoscreen/server/internal/util"
+	"github.com/knorr3/infoscreen/server/internal/components/calendar"
+	"github.com/knorr3/infoscreen/server/internal/components/mvv"
+	"github.com/knorr3/infoscreen/server/internal/components/weather"
 )
 
 type Answer struct {
@@ -51,20 +52,51 @@ var messageSubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Me
 	fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
 	entries := []Entry{}
 
-	station := util.Getenv("MVV_STATION", "none")
-
-	if station != "none" {
-		departures, err := mvv.GetData(station, 3) //TODO
-		status := "ok"
-		if err != nil {
-			status = "error"
-			log.Fatalf("Failed to get departures: %s", err)
-		}
-
+	departures, err := mvv.GetData(3) //TODO
+	if err != nil {
+		log.Printf("Failed to get departures: %s", err)
 		entries = append(entries, Entry{
 			Type:   "db",
-			Status: status,
+			Status: "err",
+			Data:   nil,
+		})
+	} else {
+		entries = append(entries, Entry{
+			Type:   "db",
+			Status: "ok",
 			Data:   departures,
+		})
+	}
+
+	weather, err := weather.GetData() //TODO
+	if err != nil {
+		log.Printf("Failed to get weather: %s", err)
+		entries = append(entries, Entry{
+			Type:   "weather",
+			Status: "err",
+			Data:   nil,
+		})
+	} else {
+		entries = append(entries, Entry{
+			Type:   "weather",
+			Status: "ok",
+			Data:   weather,
+		})
+	}
+
+	events, err := calendar.GetData(5) //TODO
+	if err != nil {
+		log.Printf("Failed to get events: %s", err)
+		entries = append(entries, Entry{
+			Type:   "calendar",
+			Status: "err",
+			Data:   nil,
+		})
+	} else {
+		entries = append(entries, Entry{
+			Type:   "calendar",
+			Status: "ok",
+			Data:   events,
 		})
 	}
 
