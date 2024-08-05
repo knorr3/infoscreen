@@ -1,17 +1,53 @@
 package components
 
 import (
-	"log"
+	"fmt"
+	"io"
+	"net/http"
 	"os"
+	"time"
 )
 
-func Getenv(key, fallback string) string {
-	value := os.Getenv(key)
+func GetEnv(key, fallback string) (value string, err error) {
+	value = os.Getenv(key)
 	if len(value) == 0 {
 		if fallback == "" {
-			log.Fatalf("ENV VAR \"%s\" is required but not set!", key)
+			err = fmt.Errorf("ENV VAR \"%s\" not set", key)
+			return
 		}
-		return fallback
+		value = fallback
 	}
-	return value
+	return
+}
+
+func MakeAPIRequest(url string, auth string) (body []byte, err error) {
+	client := http.Client{
+		Timeout: time.Second * 2, // Timeout after 2 seconds
+	}
+
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return
+	}
+
+	if auth != "" {
+		req.Header.Add("Authorization", "Basic "+auth)
+	}
+
+	res, err := client.Do(req)
+	if err != nil {
+		return
+	}
+
+	if res.Body != nil {
+		defer res.Body.Close()
+	}
+
+	if res.StatusCode != 200 {
+		err = fmt.Errorf(res.Status)
+		return
+	}
+
+	body, err = io.ReadAll(res.Body)
+	return
 }
