@@ -22,7 +22,7 @@ spec:
         - secretRef:
             name: infoscreen-config
         image: ghcr.io/knorr3/infoscreen:main
-        imagePullPolicy: IfNotPresent
+        imagePullPolicy: Always
         name: infoscreen
         resources: {}
         terminationMessagePath: /dev/termination-log

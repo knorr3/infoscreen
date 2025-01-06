@@ -13,4 +13,4 @@ WEATHER_LAT=50.7753
 WEATHER_LONG=6.0839
 
 # Calendar
-ICAL_URL=https://calendar.google.com/calendar/ical/anyrandomsubdomaingooglecanthinkof.ical
+ICAL_URL=https://calendar.google.com/calendar/ical/anyrandomsubdomaingooglecanthinkof.ics
