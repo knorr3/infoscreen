@@ -15,6 +15,7 @@ COPY *.go ./
 COPY components ./
 
 # Build
+RUN pwd && ls -la && ls -la components
 RUN CGO_ENABLED=0 GOOS=linux go build -o /infoscreen-server
 
 # Optional:
