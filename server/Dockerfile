@@ -15,7 +15,7 @@ COPY cmd ./cmd
 COPY internal ./internal
 
 # Build
-RUN CGO_ENABLED=0 GOOS=linux go build -o /infoscreen-server
+RUN CGO_ENABLED=0 GOOS=linux go build -o /infoscreen-server ./cmd
 
 # Run
 CMD ["/infoscreen-server"]
