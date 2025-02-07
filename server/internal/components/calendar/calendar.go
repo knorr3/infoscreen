@@ -2,6 +2,7 @@ package calendar
 
 import (
 	"bytes"
+	"sort"
 	"time"
 
 	"github.com/apognu/gocal"
@@ -46,6 +47,11 @@ func GetData(limit int) (events []Event, err error) {
 			Title: event.Summary,
 		})
 	}
+
+	// Sort the events slice by datetime
+	sort.Slice(events, func(i, j int) bool {
+		return events[i].Date.Unix() < events[j].Date.Unix()
+	})
 
 	return
 }
