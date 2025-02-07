@@ -10,8 +10,8 @@ BROKER_IP=192.168.0.123
 BROKER_USERNAME=mqtt
 BROKER_PASSWORD=password
 
-# MVV
-MVV_STATION=de:09178:3110
+# DB
+STATION="München%20Ost"
 
 # Weather
 WEATHER_USERNAME=user
@@ -25,10 +25,8 @@ ICAL_URL=https://calendar.google.com/calendar/ical/anyrandomsubdomaingooglecanth
 
 ### MVV
 
-For MVV Station IDs, see:
-```
-internal/components/mvv/README.md
-```
+For details and test of station names, see
+https://dbf.finalrewind.org/
 
 ### Weather
 
