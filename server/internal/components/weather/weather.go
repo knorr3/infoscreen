@@ -35,6 +35,12 @@ type Weather struct {
 	IconIdx int       `json:"icon-idx"`
 }
 
+// Save the timestamp of the weather data
+var weatherTimestamp time.Time
+
+// Save old weather data
+var savedWeather []Weather
+
 func isValidCoordinate(coord string) bool {
 	// Define the regular expression pattern for latitude/longitude in "11.111111" format
 	pattern := `^-?\d{1,2}\.\d{4,8}$`
@@ -47,6 +53,13 @@ func isValidCoordinate(coord string) bool {
 }
 
 func GetData() (weather []Weather, err error) {
+	// If the weather data is older than 60 minutes, fetch new data
+	if time.Since(weatherTimestamp) < 60*time.Minute {
+		fmt.Printf("Using saved weather data from %s\n", weatherTimestamp)
+		weather = savedWeather
+		return
+	}
+
 	weather = make([]Weather, 3)
 
 	date := time.Now()
@@ -110,6 +123,12 @@ func GetData() (weather []Weather, err error) {
 			weather[2].IconIdx = int(data.Dates[2].Value)
 		}
 	}
+
+	// Save the current weather data
+	savedWeather = weather
+
+	// Save the timestamp of the weather data
+	weatherTimestamp = time.Now()
 
 	return
 }
