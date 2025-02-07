@@ -20,7 +20,7 @@ type Departure struct {
 }
 
 func GetData(limit int) (departures []Departure, err error) {
-	station, err := util.GetEnv("STATION", "")
+	station, err := util.GetEnv("STATION", "") // TODO Fetch ENV vars once and not for every request
 	if err != nil {
 		return
 	}
@@ -39,10 +39,17 @@ func GetData(limit int) (departures []Departure, err error) {
 		return
 	}
 
-	// Filter out trains ending at the station
+	skipDestination, err := util.GetEnv("SKIP_DESTINATION", "")
+
+	// Parse the SKIP_STATIONS to a slice, split by comma
+	skipDestinationSlice := strings.Split(skipDestination, ",")
+	// Append the current station to the slice, so that trains ending at the station are also filtered out
+	skipDestinationSlice = append(skipDestinationSlice, station)
+
+	// Filter out trains
 	filteredDepartures := []Departure{}
 	for _, departure := range allDepartures {
-		if departure.Destination != station {
+		if !util.Contains(skipDestinationSlice, departure.Destination) {
 			filteredDepartures = append(filteredDepartures, departure)
 		}
 	}

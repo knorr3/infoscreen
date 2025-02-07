@@ -51,3 +51,12 @@ func MakeAPIRequest(url string, auth string) (body []byte, err error) {
 	body, err = io.ReadAll(res.Body)
 	return
 }
+
+func Contains(slice []string, element string) bool {
+	for _, e := range slice {
+		if e == element {
+			return true
+		}
+	}
+	return false
+}
