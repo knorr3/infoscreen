@@ -8,7 +8,7 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/knorr3/infoscreen/server/internal/components/calendar"
-	"github.com/knorr3/infoscreen/server/internal/components/mvv"
+	"github.com/knorr3/infoscreen/server/internal/components/db"
 	"github.com/knorr3/infoscreen/server/internal/components/weather"
 )
 
@@ -52,7 +52,7 @@ var messageSubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Me
 	fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
 	entries := []Entry{}
 
-	departures, err := mvv.GetData(5) //TODO dynamic limit by client question
+	departures, err := db.GetData(5) //TODO dynamic limit by client question
 	if err != nil {
 		log.Printf("Failed to get departures: %s", err)
 		entries = append(entries, Entry{
