@@ -35,10 +35,12 @@ type Weather struct {
 	IconIdx int       `json:"icon-idx"`
 }
 
-// Save the timestamp of the weather data
-var weatherTimestamp time.Time
+var auth string
+var lat string
+var long string
 
-// Save old weather data
+// Save the timestamp and data of the last weather request
+var weatherTimestamp time.Time
 var savedWeather []Weather
 
 func isValidCoordinate(coord string) bool {
@@ -52,31 +54,12 @@ func isValidCoordinate(coord string) bool {
 	return re.MatchString(coord)
 }
 
-func GetData() (weather []Weather, err error) {
-	// If the weather data is older than 60 minutes, fetch new data
-	if time.Since(weatherTimestamp) < 60*time.Minute {
-		fmt.Printf("Using saved weather data from %s\n", weatherTimestamp)
-		weather = savedWeather
-		return
-	}
-
-	weather = make([]Weather, 3)
-
-	date := time.Now()
-
-	lat, err := util.GetEnv("WEATHER_LAT", "")
+func New() (err error) {
+	lat, err = util.GetEnv("WEATHER_LAT", "")
 	if err != nil {
 		return
 	}
-	long, err := util.GetEnv("WEATHER_LONG", "")
-	if err != nil {
-		return
-	}
-	username, err := util.GetEnv("WEATHER_USERNAME", "")
-	if err != nil {
-		return
-	}
-	password, err := util.GetEnv("WEATHER_PASSWORD", "")
+	long, err = util.GetEnv("WEATHER_LONG", "")
 	if err != nil {
 		return
 	}
@@ -89,8 +72,32 @@ func GetData() (weather []Weather, err error) {
 		return
 	}
 
+	username, err := util.GetEnv("WEATHER_USERNAME", "")
+	if err != nil {
+		return
+	}
+	password, err := util.GetEnv("WEATHER_PASSWORD", "")
+	if err != nil {
+		return
+	}
+
+	auth = base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
+
+	return nil
+}
+
+func GetData() (weather []Weather, err error) {
+	// If the weather data is older than 60 minutes, fetch new data
+	if time.Since(weatherTimestamp) < 60*time.Minute {
+		fmt.Printf("Using saved weather data from %s\n", weatherTimestamp)
+		weather = savedWeather
+		return
+	}
+
+	weather = make([]Weather, 3)
+	date := time.Now()
+
 	url := fmt.Sprintf("https://api.meteomatics.com/%sT07:00:00Z--%sT17:00:00Z:PT5H/t_2m:C,precip_1h:mm,weather_symbol_1h:idx/%s,%s/json", date.Format("2006-01-02"), date.Format("2006-01-02"), lat, long)
-	auth := base64.StdEncoding.EncodeToString([]byte(username + ":" + password))
 
 	body, err := util.MakeAPIRequest(url, auth)
 	if err != nil {

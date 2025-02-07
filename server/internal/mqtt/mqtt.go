@@ -10,6 +10,7 @@ import (
 	"github.com/knorr3/infoscreen/server/internal/components/calendar"
 	"github.com/knorr3/infoscreen/server/internal/components/db"
 	"github.com/knorr3/infoscreen/server/internal/components/weather"
+	util "github.com/knorr3/infoscreen/server/internal/util"
 )
 
 type Answer struct {
@@ -29,6 +30,58 @@ var answerTopic string = fmt.Sprintf("%s/answer", baseTopic)
 
 var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	// fmt.Printf("Published message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+}
+
+func New() (client mqtt.Client, err error) {
+	broker, err := util.GetEnv("BROKER_IP", "")
+	if err != nil {
+		return
+	}
+	port, err := util.GetEnv("BROKER_PORT", "1883")
+	if err != nil {
+		return
+	}
+	username, err := util.GetEnv("BROKER_USERNAME", "")
+	if err != nil {
+		return
+	}
+	password, err := util.GetEnv("BROKER_USERNAME", "")
+	if err != nil {
+		return
+	}
+
+	opts := mqtt.
+		NewClientOptions().
+		AddBroker(fmt.Sprintf("tcp://%s:%s", broker, port)).
+		SetClientID("go_mqtt_client").
+		SetUsername(username).
+		SetPassword(password).
+		SetDefaultPublishHandler(messagePubHandler).
+		SetOnConnectHandler(connectHandler).
+		SetConnectionLostHandler(connectLostHandler)
+
+	// Connection
+	client = mqtt.NewClient(opts)
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		return nil, token.Error()
+	}
+
+	err = weather.New()
+	if err != nil {
+		return
+	}
+
+	err = db.New()
+	if err != nil {
+		return
+	}
+
+	err = calendar.New()
+	if err != nil {
+		return
+	}
+
+	return client, nil
 }
 
 func publish(client mqtt.Client, answer Answer) {
@@ -125,24 +178,4 @@ func SubscribeToTopic(client mqtt.Client) {
 func DisconnectFromMqtt(client mqtt.Client) {
 	fmt.Println("Shutting down MQTT connection")
 	client.Disconnect(250)
-}
-
-func CreateClient(broker string, port string, username string, password string) mqtt.Client {
-	opts := mqtt.
-		NewClientOptions().
-		AddBroker(fmt.Sprintf("tcp://%s:%s", broker, port)).
-		SetClientID("go_mqtt_client").
-		SetUsername(username).
-		SetPassword(password).
-		SetDefaultPublishHandler(messagePubHandler).
-		SetOnConnectHandler(connectHandler).
-		SetConnectionLostHandler(connectLostHandler)
-
-	// Connection
-	client := mqtt.NewClient(opts)
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		panic(token.Error())
-	}
-
-	return client
 }

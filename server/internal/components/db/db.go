@@ -19,13 +19,27 @@ type Departure struct {
 	IsCancelled        int    `json:"isCancelled"`
 }
 
-func GetData(limit int) (departures []Departure, err error) {
-	station, err := util.GetEnv("STATION", "") // TODO Fetch ENV vars once and not for every request
+var url string
+var station string
+var skipDestinations []string
+
+func New() (err error) {
+	station, err = util.GetEnv("STATION", "") // TODO Fetch ENV vars once and not for every request
 	if err != nil {
 		return
 	}
-	url := fmt.Sprintf("https://dbf.finalrewind.org/%s.json?limit=10", station)
 
+	url = fmt.Sprintf("https://dbf.finalrewind.org/%s.json?limit=10", station)
+
+	// Get the SKIP_DESTINATIONS environment variable, parse and explicitly ignore if it's not set
+	skipDestinationString, _ := util.GetEnv("SKIP_DESTINATION", "")
+	skipDestinations = strings.Split(skipDestinationString, ",")
+	skipDestinations = append(skipDestinations, station)
+
+	return
+}
+
+func GetData(limit int) (departures []Departure, err error) {
 	body, err := util.MakeAPIRequest(url, "")
 	if err != nil {
 		return
@@ -39,17 +53,10 @@ func GetData(limit int) (departures []Departure, err error) {
 		return
 	}
 
-	skipDestination, err := util.GetEnv("SKIP_DESTINATION", "")
-
-	// Parse the SKIP_STATIONS to a slice, split by comma
-	skipDestinationSlice := strings.Split(skipDestination, ",")
-	// Append the current station to the slice, so that trains ending at the station are also filtered out
-	skipDestinationSlice = append(skipDestinationSlice, station)
-
 	// Filter out trains
 	filteredDepartures := []Departure{}
 	for _, departure := range allDepartures {
-		if !util.Contains(skipDestinationSlice, departure.Destination) {
+		if !util.Contains(skipDestinations, departure.Destination) {
 			filteredDepartures = append(filteredDepartures, departure)
 		}
 	}

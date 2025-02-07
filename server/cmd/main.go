@@ -8,29 +8,14 @@ import (
 	"syscall"
 
 	mqtt "github.com/knorr3/infoscreen/server/internal/mqtt"
-	util "github.com/knorr3/infoscreen/server/internal/util"
 )
 
 func main() {
-	// Basic Setup
-	broker, err := util.GetEnv("BROKER_IP", "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	port, err := util.GetEnv("BROKER_PORT", "1883")
-	if err != nil {
-		log.Fatal(err)
-	}
-	username, err := util.GetEnv("BROKER_USERNAME", "")
-	if err != nil {
-		log.Fatal(err)
-	}
-	password, err := util.GetEnv("BROKER_USERNAME", "")
-	if err != nil {
-		log.Fatal(err)
-	}
 
-	client := mqtt.CreateClient(broker, port, username, password)
+	client, err := mqtt.New()
+	if err != nil {
+		log.Fatalf("Error creating MQTT client: %s", err)
+	}
 
 	defer mqtt.DisconnectFromMqtt(client)
 

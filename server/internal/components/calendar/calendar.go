@@ -14,12 +14,14 @@ type Event struct {
 	Title string    `json:"title"`
 }
 
-func GetData(limit int) (events []Event, err error) {
-	url, err := util.GetEnv("ICAL_URL", "")
-	if err != nil {
-		return
-	}
+var url string
 
+func New() (err error) {
+	url, err = util.GetEnv("ICAL_URL", "")
+	return
+}
+
+func GetData(limit int) (events []Event, err error) {
 	body, err := util.MakeAPIRequest(url, "")
 	if err != nil {
 		return
