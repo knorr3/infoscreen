@@ -72,8 +72,11 @@ bool touchOnline = false;
 // uint32_t bigIntervalTimestamp = 0;
 uint16_t lastMinute = -1;
 unsigned long lastMsg = 0;
-char msg[MISC_MSG_SIZE];
-char buf[128];
+unsigned long lastMqttAttempt = 0;
+uint16_t mqttAttempts = 0;
+const unsigned long mqttRetryInterval = 5000; // 5 seconds
+char mqttRequestDataMsg[MISC_MSG_SIZE];
+// char buf[128];
 int16_t lastX = 0;
 int16_t lastY = 0;
 
@@ -130,22 +133,23 @@ struct CalendarData
 /////////////////// DEVICE FUNCTIONS //////////////////////////
 void wifiGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
 {
-    Serial.println("WiFi connected");
-    Serial.println("IP address: ");
+    Serial.println(F("[WiFi] Connected"));
+    Serial.print(F("[WiFi] IP address: "));
     Serial.println(IPAddress(info.got_ip.ip_info.ip.addr));
 }
 
 void timeAvailable(struct timeval *t)
 {
-    Serial.println("[WiFi]: Got time adjustment from NTP!");
+    Serial.println(F("[WiFi]: Got time adjustment from NTP!"));
     rtc.hwClockWrite();
 }
 
 void buttonPressed(Button2 &b)
 {
-    Serial.println("Button1 Pressed!");
+    Serial.println(F("[BTN] Button1 Pressed!"));
     int32_t cursor_x = 200;
     int32_t cursor_y = 450;
+    char buf[128];
 
     Rect_t area = {
         .x = 200,
@@ -170,12 +174,14 @@ void mqttReceiveHandler(char *topic, byte *payload, unsigned int length)
     // Serial.println();
     // Serial.println("-----------------------");
 
+    Serial.println(F("[MQTT] Message received!"));
+
     // Parse the JSON message
     JsonDocument doc;
     DeserializationError error = deserializeJson(doc, payload);
     if (error)
     {
-        Serial.print("deserializeJson() failed: ");
+        Serial.println(F("[MQTT] deserializeJson() failed: "));
         Serial.println(error.c_str());
         deepSleep("JSON parse error");
     }
@@ -239,54 +245,58 @@ void mqttReceiveHandler(char *topic, byte *payload, unsigned int length)
         }
     }
 
-    Serial.println("Weather data:");
-    for (int i = 0; i < MAX_WEATHER_DATA; i++)
-    {
-        Serial.printf("Date: %s, Temp: %.1f, Precip: %.1f, Icon: %d\n",
-                      weather[i].date, weather[i].temp, weather[i].precip, weather[i].iconIdx);
-    }
+    // Serial.println("Weather data:");
+    // for (int i = 0; i < MAX_WEATHER_DATA; i++)
+    // {
+    //     Serial.printf("Date: %s, Temp: %.1f, Precip: %.1f, Icon: %d\n",
+    //                   weather[i].date, weather[i].temp, weather[i].precip, weather[i].iconIdx);
+    // }
 
-    Serial.println("DB data:");
-    for (int i = 0; i < MAX_DB_DATA; i++)
-    {
-        Serial.printf("Scheduled Departure: %s, Destination: %s, Train: %s, Delay: %d, Cancelled: %d\n",
-                      db[i].scheduledDeparture, db[i].destination, db[i].train, db[i].delayDeparture, db[i].isCancelled);
-    }
+    // Serial.println("DB data:");
+    // for (int i = 0; i < MAX_DB_DATA; i++)
+    // {
+    //     Serial.printf("Scheduled Departure: %s, Destination: %s, Train: %s, Delay: %d, Cancelled: %d\n",
+    //                   db[i].scheduledDeparture, db[i].destination, db[i].train, db[i].delayDeparture, db[i].isCancelled);
+    // }
 
-    Serial.println("Calendar data:");
-    for (int i = 0; i < MAX_CAL_DATA; i++)
-    {
-        Serial.printf("Date: %s, Title: %s\n",
-                      cal[i].date, cal[i].title);
-    }
+    // Serial.println("Calendar data:");
+    // for (int i = 0; i < MAX_CAL_DATA; i++)
+    // {
+    //     Serial.printf("Date: %s, Title: %s\n",
+    //                   cal[i].date, cal[i].title);
+    // }
 
+    epd_poweron();
     drawLayout();
-    drawRtcTime();
-    drawRtcDate();
+    drawRtcDateTime();
     drawWeather();
     drawDb();
     drawCal();
+    epd_poweroff_all();
 }
 
 void mqttRequestData()
 {
-    sniprintf(msg, MISC_MSG_SIZE, "{\"type\":\"request\",\"data\":[{\"name\":\"weather\"},{\"name\":\"db\",\"count\":%d},{\"name\":\"calendar\",\"count\":%d}]}", MAX_DB_DATA, MAX_CAL_DATA);
-    mqttClient.publish(mqtt_pub_topic, msg);
+    Serial.println(F("[MQTT] Requesting data..."));
+    mqttClient.publish(mqtt_pub_topic, mqttRequestDataMsg);
 }
 
 void mqttReconnect()
 {
     // Loop until we're reconnected
-    while (!mqttClient.connected())
+    if (!mqttClient.connected() && (millis() - lastMqttAttempt > mqttRetryInterval))
     {
-        Serial.print("Attempting MQTT connection...");
+        lastMqttAttempt = millis();
+        mqttAttempts++;
+        Serial.print(F("[MQTT] Attempting MQTT connection..."));
         // Create a random client ID
         String clientId = "ESP8266Client-";
         clientId += String(random(0xffff), HEX);
         // Attempt to connect
         if (mqttClient.connect(clientId.c_str()))
         {
-            Serial.println("connected");
+            Serial.println(F("connected"));
+            mqttAttempts = 0;
             // Once connected, publish an announcement...
             mqttClient.publish(mqtt_pub_topic, "Reconnected");
             // ... and resubscribe
@@ -294,11 +304,14 @@ void mqttReconnect()
         }
         else
         {
-            Serial.print("failed, rc=");
-            Serial.print(mqttClient.state());
-            Serial.println(" try again in 5 seconds");
+            Serial.printf("failed, rc=%d, attempts=%d try again in 5 seconds\n", mqttClient.state(), mqttAttempts);
             // Wait 5 seconds before retrying
-            delay(5000);
+            // delay(5000);
+            // vTaskDelay(pdMS_TO_TICKS(5000));
+            if (mqttAttempts > 30)
+            {
+                deepSleep("MQTT reconnect failed!!!");
+            }
         }
     }
 }
@@ -322,7 +335,7 @@ void checkMinuteChange(void *parameter)
 /////////////////// DISPLAY FUNCTIONS //////////////////////////
 void deepSleep(const char *msg)
 {
-    Serial.println("Sleep !!!!!!");
+    Serial.println(F("Deep Sleep !!!!!!"));
     Serial.printf("Msg: %s\n", msg);
 
     epd_poweron();
@@ -332,7 +345,8 @@ void deepSleep(const char *msg)
     int32_t cursor_y = 0;
     memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
     epd_draw_grayscale_image(epd_full_screen(), framebuffer);
-    delay(1000);
+    // delay(1000);
+    vTaskDelay(pdMS_TO_TICKS(1000));
     Rect_t area = {
         .x = 224,
         .y = 14,
@@ -353,7 +367,8 @@ void deepSleep(const char *msg)
 
     WiFi.disconnect(true);
     touch.sleep();
-    delay(100);
+    // delay(100);
+    vTaskDelay(pdMS_TO_TICKS(100));
     Wire.end();
     Serial.end();
 
@@ -364,34 +379,35 @@ void deepSleep(const char *msg)
 
 void deepClean()
 {
-    Serial.println("Cleaning...");
+    Serial.println(F("[DISP] Deep Cleaning... "));
     int32_t i = 0;
 
     Rect_t area = epd_full_screen();
     epd_poweron();
-    delay(10);
+    // delay(10);
+    vTaskDelay(pdMS_TO_TICKS(10));
     epd_clear();
     for (i = 0; i < 20; i++)
     {
         epd_push_pixels(area, 50, 0);
-        delay(100);
+        // delay(100);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     epd_clear();
     for (i = 0; i < 40; i++)
     {
         epd_push_pixels(area, 50, 1);
-        delay(100);
+        // delay(100);
+        vTaskDelay(pdMS_TO_TICKS(100));
     }
     epd_clear();
     epd_poweroff_all();
-    Serial.println("Cleaning OK");
+    Serial.println(F("[DISP] Deep Clean OK"));
 }
 
 /////////////////// DRAW FUNCTIONS //////////////////////////
 void drawTouchButtons()
 {
-    epd_poweron();
-
     // Draw buttons
     FontProperties props = {
         .fg_color = 15,
@@ -436,13 +452,11 @@ void drawTouchButtons()
     write_mode((GFXfont *)&FiraSans, "Clean", &x, &y, framebuffer, WHITE_ON_BLACK, NULL);
 
     epd_draw_grayscale_image(epd_full_screen(), framebuffer);
-    epd_poweroff_all();
 }
 
-void drawRtcTime()
+void drawRtcDateTime()
 {
-    epd_poweron();
-
+    char buf[128];
     struct tm timeinfo;
     rtc.getDateTime(&timeinfo);
 
@@ -451,29 +465,14 @@ void drawRtcTime()
     strftime(buf, 64, "%H:%M", &timeinfo);
     writeln((GFXfont *)&CourB36, buf, &cursor_x, &cursor_y, NULL);
 
-    epd_poweroff_all();
-}
-
-void drawRtcDate()
-{
-    epd_poweron();
-
-    struct tm timeinfo;
-    rtc.getDateTime(&timeinfo);
-
-    int32_t cursor_x = 50;
-    int32_t cursor_y = 120;
-    // strftime(buf, 64, "%b %d %Y", &timeinfo);
+    cursor_x = 50;
+    cursor_y = 120;
     strftime(buf, 64, "%a %d.%m", &timeinfo);
     writeln((GFXfont *)&Cour20, buf, &cursor_x, &cursor_y, NULL);
-
-    epd_poweroff_all();
 }
 
 void drawWeather()
 {
-    epd_poweron();
-
     Rect_t area = {
         .x = 400,
         .y = 80,
@@ -483,6 +482,7 @@ void drawWeather()
     int32_t cursor_x;
     int32_t cursor_y;
     int32_t iconIdx;
+    char buf[128];
 
     // Loop over the weather data
     for (int i = 0; i < MAX_WEATHER_DATA; i++)
@@ -504,13 +504,11 @@ void drawWeather()
         epd_draw_grayscale_image(area, (uint8_t *)weatherIcons[iconIdx]);
         epd_draw_image(area, (uint8_t *)weatherIcons[iconIdx], BLACK_ON_WHITE);
     }
-    epd_poweroff_all();
 }
 
 void drawDb()
 {
-    epd_poweron();
-
+    char buf[128];
     int32_t cursor_x;
     int32_t cursor_y;
 
@@ -597,13 +595,11 @@ void drawDb()
             writeln((GFXfont *)&Cour20, buf, &cursor_x, &cursor_y, NULL);
         }
     }
-    epd_poweroff_all();
 }
 
 void drawCal()
 {
-    epd_poweron();
-
+    char buf[128];
     int32_t cursor_x;
     int32_t cursor_y;
 
@@ -612,16 +608,18 @@ void drawCal()
         cursor_x = 500;
         cursor_y = 200 + i * 125;
 
-        String isoDate = cal[i].date;
+        int year, month, day, hour, minute, second;
 
-        snprintf(buf, 128, "%s.%s %s:%s",
-                 isoDate.substring(8, 10),  // Day
-                 isoDate.substring(5, 7),   // Month
-                 isoDate.substring(11, 13), // Hour
-                 isoDate.substring(14, 16)  // Minute
-
-        );
-        // snprintf(buf, 128, "%s", cal[i].date);
+        if (sscanf(cal[i].date, "%d-%d-%dT%d:%d:%dZ", &year, &month, &day, &hour, &minute, &second) == 6)
+        {
+            // Format the output as "DD.MM HH:MM"
+            snprintf(buf, 128, "%02d.%02d %02d:%02d", day, month, hour, minute);
+        }
+        else
+        {
+            // Handle parsing error here
+            strncpy(buf, "Invalid date", 128);
+        }
         writeln((GFXfont *)&Cour20, buf, &cursor_x, &cursor_y, NULL);
 
         cursor_x = 500;
@@ -631,18 +629,16 @@ void drawCal()
         buf[18] = '\0';
         writeln((GFXfont *)&CourB20, buf, &cursor_x, &cursor_y, NULL);
     }
-    // epd_draw_grayscale_image(epd_full_screen(), framebuffer);
-    epd_poweroff_all();
 }
 
 void drawLayout()
 {
-    epd_poweron();
     epd_clear();
 
     // memset(framebuffer, 0xFF, EPD_WIDTH * EPD_HEIGHT / 2);
     // epd_draw_grayscale_image(epd_full_screen(), framebuffer);
-    delay(10);
+    // delay(10);
+    vTaskDelay(pdMS_TO_TICKS(10));
 
     epd_draw_hline(0, 144, EPD_WIDTH, 0, framebuffer);
 
@@ -658,7 +654,6 @@ void drawLayout()
     // epd_draw_vline(533, 0, 144, 0, framebuffer);
     // epd_draw_vline(747, 0, 144, 0, framebuffer);
     epd_draw_grayscale_image(epd_full_screen(), framebuffer);
-    epd_poweroff_all();
 }
 
 /////////////////// SETUP //////////////////////////
@@ -674,8 +669,9 @@ void setup()
 
     while (WiFi.status() != WL_CONNECTED)
     {
-        delay(500);
-        Serial.println("Connecting to WiFi..");
+        // delay(500);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        Serial.println(F("[WiFi] Connecting to WiFi.."));
     }
 
     // MQTT
@@ -687,10 +683,10 @@ void setup()
     {
         String client_id = "esp32-client-";
         client_id += String(WiFi.macAddress());
-        Serial.printf("The client %s connects to the MQTT broker\n", client_id.c_str());
+        Serial.printf("[MQTT] The client %s connects to the MQTT broker\n", client_id.c_str());
         if (mqttClient.connect(client_id.c_str(), mqtt_username, mqtt_password))
         {
-            Serial.println("MQTT broker connected");
+            Serial.println("[MQTT] broker connected");
         }
         else
         {
@@ -701,6 +697,9 @@ void setup()
     }
     mqttClient.subscribe(mqtt_sub_topic);
 
+    // Write the mqtt request message
+    sniprintf(mqttRequestDataMsg, MISC_MSG_SIZE, "{\"type\":\"request\",\"data\":[{\"name\":\"weather\"},{\"name\":\"db\",\"count\":%d},{\"name\":\"calendar\",\"count\":%d}]}", MAX_DB_DATA, MAX_CAL_DATA);
+
     // Time
     sntp_set_time_sync_notification_cb(timeAvailable);
     configTzTime(timeZone, ntpServer1, ntpServer2);
@@ -709,7 +708,7 @@ void setup()
     framebuffer = (uint8_t *)ps_calloc(sizeof(uint8_t), EPD_WIDTH * EPD_HEIGHT / 2);
     if (!framebuffer)
     {
-        Serial.println("alloc memory failed !!!");
+        Serial.println(F("[FB] alloc memory failed !!!"));
         while (1)
             ;
     }
@@ -726,7 +725,7 @@ void setup()
     // RTC
     Wire.begin(BOARD_SDA, BOARD_SCL);
     Wire.beginTransmission(PCF8563_SLAVE_ADDRESS);
-    if (!Wire.endTransmission() == 0)
+    if (Wire.endTransmission() != 0)
     {
         deepSleep("RTC probe failed!!!");
     }
@@ -735,7 +734,11 @@ void setup()
     // Run the minute check task periodically in the background
     // Runs every second and checks if the minute has changed
     // If it has, it requests new data from the server and updates the display
-    xTaskCreate(checkMinuteChange, "MinuteCheck", 2048, NULL, 1, NULL);
+    BaseType_t result = xTaskCreate(checkMinuteChange, "MinuteCheck", 2048, NULL, 1, NULL);
+    if (result != pdPASS)
+    {
+        deepSleep("Failed to create minute check task!");
+    }
 
     // Touch
     uint8_t touchAddress = 0x00;
