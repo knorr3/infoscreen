@@ -23,13 +23,15 @@ var url string
 var station string
 var skipDestinations []string
 
+const fetchLimit = 20
+
 func New() (err error) {
-	station, err = util.GetEnv("STATION", "") // TODO Fetch ENV vars once and not for every request
+	station, err = util.GetEnv("STATION", "")
 	if err != nil {
 		return
 	}
 
-	url = fmt.Sprintf("https://dbf.finalrewind.org/%s.json?limit=10", station)
+	url = fmt.Sprintf("https://dbf.finalrewind.org/%s.json?limit=%d", station, fetchLimit)
 
 	// Get the SKIP_DESTINATIONS environment variable, parse and explicitly ignore if it's not set
 	skipDestinationString, _ := util.GetEnv("SKIP_DESTINATION", "")
@@ -45,7 +47,7 @@ func GetData(limit int) (departures []Departure, err error) {
 		return
 	}
 
-	allDepartures := make([]Departure, 10)
+	allDepartures := make([]Departure, limit)
 	err = json.Unmarshal([]byte(body), &struct {
 		Departures *[]Departure `json:"departures"`
 	}{Departures: &allDepartures})

@@ -86,7 +86,7 @@ func New() (err error) {
 	return nil
 }
 
-func GetData() (weather []Weather, err error) {
+func GetData(limit int) (weather []Weather, err error) {
 	// If the weather data is older than 60 minutes, fetch new data
 	if time.Since(weatherTimestamp) < 60*time.Minute {
 		fmt.Printf("Using saved weather data from %s\n", weatherTimestamp)
@@ -94,9 +94,10 @@ func GetData() (weather []Weather, err error) {
 		return
 	}
 
-	weather = make([]Weather, 3)
+	weather = make([]Weather, limit)
 	date := time.Now()
 
+	// TODO honor the limit parameter
 	url := fmt.Sprintf("https://api.meteomatics.com/%sT07:00:00Z--%sT17:00:00Z:PT5H/t_2m:C,precip_1h:mm,weather_symbol_1h:idx/%s,%s/json", date.Format("2006-01-02"), date.Format("2006-01-02"), lat, long)
 
 	body, err := util.MakeAPIRequest(url, auth)
@@ -115,6 +116,7 @@ func GetData() (weather []Weather, err error) {
 	for _, entry := range weatherResponse.Data {
 		data := entry.Coordinates[0]
 
+		// TODO honor the limit parameter
 		switch entry.Parameter {
 		case "t_2m:C":
 			weather[0].Temp = data.Dates[0].Value

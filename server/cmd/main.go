@@ -11,7 +11,6 @@ import (
 )
 
 func main() {
-
 	client, err := mqtt.New()
 	if err != nil {
 		log.Fatalf("Error creating MQTT client: %s", err)

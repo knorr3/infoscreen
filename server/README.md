@@ -12,6 +12,7 @@ BROKER_PASSWORD=password
 
 # DB
 STATION="München%20Ost"
+SKIP_DESTINATION="Tutzing,Feldafing,Possenhofen"
 
 # Weather
 WEATHER_USERNAME=user
@@ -23,7 +24,7 @@ WEATHER_LONG=6.0839
 ICAL_URL=https://calendar.google.com/calendar/ical/anyrandomsubdomaingooglecanthinkof.ics
 ```
 
-### MVV
+### DB
 
 For details and test of station names, see
 https://dbf.finalrewind.org/
