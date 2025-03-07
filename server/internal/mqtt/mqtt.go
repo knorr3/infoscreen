@@ -24,13 +24,23 @@ type Entry struct {
 	Data   interface{} `json:"data"`
 }
 
+type DataRequest struct {
+	Name  string `json:"name"`
+	Count int    `json:"count"`
+}
+
+type Request struct {
+	Type         string        `json:"type"`
+	DataRequests []DataRequest `json:"data"`
+}
+
 var baseTopic string = "infoscreen"
 var questionTopic string = fmt.Sprintf("%s/question", baseTopic)
 var answerTopic string = fmt.Sprintf("%s/answer", baseTopic)
 
-var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
-	// fmt.Printf("Published message: %s from topic: %s\n", msg.Payload(), msg.Topic())
-}
+// var messagePubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
+// 	fmt.Printf("Published message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+// }
 
 func New() (client mqtt.Client, err error) {
 	broker, err := util.GetEnv("BROKER_IP", "")
@@ -56,7 +66,7 @@ func New() (client mqtt.Client, err error) {
 		SetClientID("go_mqtt_client").
 		SetUsername(username).
 		SetPassword(password).
-		SetDefaultPublishHandler(messagePubHandler).
+		// SetDefaultPublishHandler(messagePubHandler).
 		SetOnConnectHandler(connectHandler).
 		SetConnectionLostHandler(connectLostHandler)
 
@@ -66,6 +76,7 @@ func New() (client mqtt.Client, err error) {
 		return nil, token.Error()
 	}
 
+	// Initialize components
 	err = weather.New()
 	if err != nil {
 		return
@@ -103,54 +114,76 @@ func publish(client mqtt.Client, answer Answer) {
 
 var messageSubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
 	fmt.Printf("Received message: %s from topic: %s\n", msg.Payload(), msg.Topic())
+
+	// Parse request to Request struct
+	request := Request{}
+	err := json.Unmarshal(msg.Payload(), &request)
+	if err != nil {
+		log.Printf("Failed to parse request: %s", err)
+		return
+	}
+
 	entries := []Entry{}
 
-	departures, err := db.GetData(5) //TODO dynamic limit by client question
-	if err != nil {
-		log.Printf("Failed to get departures: %s", err)
-		entries = append(entries, Entry{
-			Type:   "db",
-			Status: "err",
-			Data:   nil,
-		})
-	} else {
-		entries = append(entries, Entry{
-			Type:   "db",
-			Status: "ok",
-			Data:   departures,
-		})
-	}
-
-	weather, err := weather.GetData() //TODO
-	if err != nil {
-		log.Printf("Failed to get weather: %s", err)
-		entries = append(entries, Entry{
-			Type:   "weather",
-			Status: "err",
-			Data:   nil,
-		})
-	} else {
-		entries = append(entries, Entry{
-			Type:   "weather",
-			Status: "ok",
-			Data:   weather,
-		})
-	}
-
-	events, err := calendar.GetData(5) //TODO dynamic limit by client question
-	if err != nil {
-		log.Printf("Failed to get events: %s", err)
-		entries = append(entries, Entry{
-			Type:   "calendar",
-			Status: "err",
-			Data:   nil,
-		})
-	} else {
-		entries = append(entries, Entry{
-			Type:   "calendar",
-			Status: "ok",
-			Data:   events,
-		})
+	// Get data for each request
+	for _, dataRequest := range request.DataRequests {
+		switch dataRequest.Name {
+		case "db":
+			departures, err := db.GetData(dataRequest.Count)
+			if err != nil {
+				log.Printf("Failed to get departures: %s", err)
+				entries = append(entries, Entry{
+					Type:   "db",
+					Status: "err",
+					Data:   nil,
+				})
+			} else {
+				entries = append(entries, Entry{
+					Type:   "db",
+					Status: "ok",
+					Data:   departures,
+				})
+			}
+		case "weather":
+			weather, err := weather.GetData(dataRequest.Count)
+			if err != nil {
+				log.Printf("Failed to get weather: %s", err)
+				entries = append(entries, Entry{
+					Type:   "weather",
+					Status: "err",
+					Data:   nil,
+				})
+			} else {
+				entries = append(entries, Entry{
+					Type:   "weather",
+					Status: "ok",
+					Data:   weather,
+				})
+			}
+		case "calendar":
+			events, err := calendar.GetData(dataRequest.Count)
+			if err != nil {
+				log.Printf("Failed to get events: %s", err)
+				entries = append(entries, Entry{
+					Type:   "calendar",
+					Status: "err",
+					Data:   nil,
+				})
+			} else {
+				entries = append(entries, Entry{
+					Type:   "calendar",
+					Status: "ok",
+					Data:   events,
+				})
+			}
+		default:
+			log.Printf("Unknown data request: %s", dataRequest.Name)
+			entries = append(entries, Entry{
+				Type:   dataRequest.Name,
+				Status: "err",
+				Data:   nil,
+			})
+		}
 	}
 
 	answer := Answer{
