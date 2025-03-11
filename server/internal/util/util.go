@@ -22,7 +22,7 @@ func GetEnv(key, fallback string) (value string, err error) {
 
 func MakeAPIRequest(url string, auth string) (body []byte, err error) {
 	client := http.Client{
-		Timeout: time.Second * 2, // Timeout after 2 seconds
+		Timeout: time.Second * 5,
 	}
 
 	req, err := http.NewRequest(http.MethodGet, url, nil)
