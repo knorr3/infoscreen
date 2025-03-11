@@ -98,7 +98,7 @@ func GetData(limit int) (weather []Weather, err error) {
 	date := time.Now()
 
 	// TODO honor the limit parameter
-	url := fmt.Sprintf("https://api.meteomatics.com/%sT07:00:00Z--%sT17:00:00Z:PT5H/t_2m:C,precip_1h:mm,weather_symbol_1h:idx/%s,%s/json", date.Format("2006-01-02"), date.Format("2006-01-02"), lat, long)
+	url := fmt.Sprintf("https://api.meteomatics.com/%sT07:00:00Z--%sT17:00:00Z:PT5H/t_2m:C,weather_symbol_1h:idx/%s,%s/json", date.Format("2006-01-02"), date.Format("2006-01-02"), lat, long)
 
 	body, err := util.MakeAPIRequest(url, auth)
 	if err != nil {
@@ -113,6 +113,22 @@ func GetData(limit int) (weather []Weather, err error) {
 		return
 	}
 
+	// TODO honor the limit parameter
+	url = fmt.Sprintf("https://api.meteomatics.com/%sT07:00:00Z--%sT19:00:00Z:PT1H/precip_1h:mm/%s,%s/json", date.Format("2006-01-02"), date.Format("2006-01-02"), lat, long)
+
+	body, err = util.MakeAPIRequest(url, auth)
+	if err != nil {
+		return
+	}
+
+	percipResponse := WeatherResponse{}
+	err = json.Unmarshal(body, &percipResponse)
+
+	if percipResponse.Status != "OK" {
+		err = fmt.Errorf("weather API status not ok (percip): %s", percipResponse.Status)
+		return
+	}
+
 	for _, entry := range weatherResponse.Data {
 		data := entry.Coordinates[0]
 
@@ -122,16 +138,34 @@ func GetData(limit int) (weather []Weather, err error) {
 			weather[0].Temp = data.Dates[0].Value
 			weather[1].Temp = data.Dates[1].Value
 			weather[2].Temp = data.Dates[2].Value
-		case "precip_1h:mm":
-			weather[0].Precip = data.Dates[0].Value
-			weather[1].Precip = data.Dates[1].Value
-			weather[2].Precip = data.Dates[2].Value
+		// case "precip_1h:mm":
+		// 	weather[0].Precip = data.Dates[0].Value
+		// 	weather[1].Precip = data.Dates[1].Value
+		// 	weather[2].Precip = data.Dates[2].Value
 		case "weather_symbol_1h:idx":
 			weather[0].IconIdx = int(data.Dates[0].Value)
 			weather[1].IconIdx = int(data.Dates[1].Value)
 			weather[2].IconIdx = int(data.Dates[2].Value)
 		}
 	}
+
+	// 7 8 9 10 | 11 12 13 14 | 15 16 17 18 19
+	data := percipResponse.Data[0].Coordinates[0]
+
+	// TODO honor the limit parameter
+	weather[0].Precip = data.Dates[0].Value
+	weather[0].Precip += data.Dates[1].Value
+	weather[0].Precip += data.Dates[2].Value
+	weather[0].Precip += data.Dates[3].Value
+	weather[1].Precip = data.Dates[4].Value
+	weather[1].Precip += data.Dates[5].Value
+	weather[1].Precip += data.Dates[6].Value
+	weather[1].Precip += data.Dates[7].Value
+	weather[2].Precip = data.Dates[8].Value
+	weather[2].Precip += data.Dates[9].Value
+	weather[2].Precip += data.Dates[10].Value
+	weather[2].Precip += data.Dates[11].Value
+	weather[2].Precip += data.Dates[12].Value
 
 	// Save the current weather data
 	savedWeather = weather
