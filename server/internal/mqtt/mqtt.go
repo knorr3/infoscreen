@@ -55,7 +55,7 @@ func New() (client mqtt.Client, err error) {
 	if err != nil {
 		return
 	}
-	password, err := util.GetEnv("BROKER_USERNAME", "")
+	password, err := util.GetEnv("BROKER_PASSWORD", "")
 	if err != nil {
 		return
 	}
