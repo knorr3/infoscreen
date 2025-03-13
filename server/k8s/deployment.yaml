@@ -11,7 +11,7 @@ spec:
     matchLabels:
       app: infoscreen-server
   strategy:
-    type: Recreate
+    type: RollingUpdate
   template:
     metadata:
       labels:
